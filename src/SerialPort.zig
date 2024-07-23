@@ -135,8 +135,8 @@ const FlowControl = enum {
 
 const Buffers = switch (native_os) {
     .windows => enum(u32) {
-        input = 0x0004,
-        output = 0x0008,
+        input = 0x0008,
+        output = 0x0004,
         both = 0x000C,
     },
     .macos => enum(usize) {
@@ -160,7 +160,8 @@ fn wConfigure(file: std.fs.File, config: Config) !void {
     var buffer = [_]u8{0} ** 100;
     var fbs = std.io.fixedBufferStream(&buffer);
     const fbs_writer = fbs.writer();
-    try fbs_writer.print("baud={d} data={d}", .{ config.baud_rate, @intFromEnum(config.data_bits) });
+    try fbs_writer.print("baud={d}", .{config.baud_rate});
+    try fbs_writer.print(" data={d}", .{@intFromEnum(config.data_bits)});
     try fbs_writer.print(" parity={s}", .{@tagName(config.parity)[0..1]});
     try fbs_writer.print(" stop={s}", .{switch (config.stop_bits) {
         .one => "1",
@@ -168,24 +169,21 @@ fn wConfigure(file: std.fs.File, config: Config) !void {
         .two => "2",
     }});
     // Specifies whether infinite time-out processing is on or off. The default is off.
-    try fbs_writer.print(" to={s}", .{"on"});
+    try fbs_writer.print(" to={s}", .{if (null == config.timeout) "on" else "off"});
     // Specifies whether the xon or xoff protocol for data-flow control is on or off.
-    try fbs_writer.print(" xon={s}", .{
-        if (config.flow_control == .hardware) "on" else "off",
-    });
+    try fbs_writer.print(" xon={s}", .{if (config.flow_control == .hardware) "on" else "off"});
     // Specifies whether output handshaking that uses the Data Set Ready (DSR) circuit is on or off.
     try fbs_writer.print(" odsr={s}", .{"on"});
     // Specifies whether output handshaking that uses the Clear To Send (CTS) circuit is on or off.
     try fbs_writer.print(" octs={s}", .{"on"});
     // Specifies whether the Data Terminal Ready (DTR) circuit is on or off or set to handshake. (on|off|hs)
-    // try fbs_writer.print(" dtr={s}", .{"on"});
+    try fbs_writer.print(" dtr={s}", .{"on"});
     // Specifies whether the Request To Send (RTS) circuit is set to on, off, handshake, or toggle. (on|off|hs|tg)
-    // try fbs_writer.print(" rts={s}", .{"on"});
+    try fbs_writer.print(" rts={s}", .{"on"});
     // Specifies whether the DSR circuit sensitivity is on or off.
     try fbs_writer.print(" idsr={s}", .{"on"});
     var dcb = std.mem.zeroes(windows.DCB);
     var comm_timeouts = std.mem.zeroes(windows.CommTimeouts);
-    std.debug.print("{s}\n", .{fbs.getWritten()});
     if (0 == windows.BuildCommDCBAndTimeoutsA(@ptrCast(fbs.getWritten()), &dcb, &comm_timeouts)) {
         std.debug.print("BuildCommDCBAndTimeoutsA: {d}\n", .{std.os.windows.GetLastError()});
         return error.ConfigurationFailed;
@@ -193,15 +191,14 @@ fn wConfigure(file: std.fs.File, config: Config) !void {
     dcb.XonChar = 0x11;
     dcb.XoffChar = 0x13;
     dcb.EofChar = 0x04;
-    std.debug.print("{any}\n", .{dcb});
-
     if (0 == windows.SetCommState(file.handle, &dcb)) {
         std.debug.print("SetCommState: {d}\n", .{std.os.windows.GetLastError()});
         return error.ConfigurationFailed;
     }
-    if (null == config.timeout) return;
-
-    std.debug.print("{any}\n", .{comm_timeouts});
+    comm_timeouts.ReadIntervalTimeout = config.timeout orelse return;
+    comm_timeouts.ReadTotalTimeoutConstant = config.timeout orelse return;
+    comm_timeouts.WriteTotalTimeoutConstant = config.timeout orelse return;
+    // std.debug.print("{any}\n", .{comm_timeouts});
     if (0 == windows.SetCommTimeouts(file.handle, &comm_timeouts)) {
         std.debug.print("SetCommTimeouts: {d}\n", .{std.os.windows.GetLastError()});
         return error.ConfigurationFailed;
