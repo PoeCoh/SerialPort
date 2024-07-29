@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     _ = b.addModule("SimpleFile", .{
-        .root_source_file = .{ .path = "src/SerialPort.zig" },
+        .root_source_file = b.pathFromRoot("src/SimpleFile.zig"),
         .target = target,
         .optimize = optimize,
     });
