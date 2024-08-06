@@ -1,7 +1,6 @@
 const std = @import("std");
 const DWORD = std.os.windows.DWORD;
 const LPCSTR = std.os.windows.LPCSTR;
-const LPDCB = std.os.windows.LPDCB;
 const BOOL = std.os.windows.BOOL;
 const WORD = std.os.windows.WORD;
 const BYTE = std.os.windows.BYTE;
